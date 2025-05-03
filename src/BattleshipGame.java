@@ -27,13 +27,25 @@ public class BattleshipGame extends JFrame {
     private static final int[] SHIP_SIZES = {5, 4, 3, 3, 2}; // Carrier, Battleship, Cruiser, Submarine, Destroyer
     private static final String[] SHIP_NAMES = {"Carrier", "Battleship", "Cruiser", "Submarine", "Destroyer"};
     
+    private boolean placingShips = true;
+    private int currentShipIndex = 0;
+    private boolean isHorizontal = true; // default
+
+    
     public BattleshipGame() {
         setTitle("Battleship Game");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
         
+        getContentPane().setBackground(new Color(30, 30, 60)); // dark navy background
+
+        
         // Initialize game panels
-        JPanel gamePanel = new JPanel(new GridLayout(1, 2, 20, 0));
+        backgroundPanel gamePanel = new backgroundPanel("C:/Users/madhuritha2/csci5020/Battleship/battleship-new/src/ocean.png");
+        gamePanel.setLayout(new GridLayout(1, 2, 20, 0));
+
+        gamePanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
         
         // Player's grid
         playerPanel = new JPanel(new GridLayout(GRID_SIZE, GRID_SIZE));
@@ -44,6 +56,22 @@ public class BattleshipGame extends JFrame {
         computerPanel = new JPanel(new GridLayout(GRID_SIZE, GRID_SIZE));
         computerPanel.setBorder(BorderFactory.createTitledBorder("Enemy Waters"));
         initializeGrid(computerPanel, computerGrid, true);
+        playerPanel.setBorder(BorderFactory.createTitledBorder(
+        	    BorderFactory.createLineBorder(Color.WHITE),
+        	    "Your Fleet",
+        	    0, 0,
+        	    new Font("Arial", Font.BOLD, 16),
+        	    Color.WHITE
+        	));
+
+        	computerPanel.setBorder(BorderFactory.createTitledBorder(
+        	    BorderFactory.createLineBorder(Color.WHITE),
+        	    "Enemy Waters",
+        	    0, 0,
+        	    new Font("Arial", Font.BOLD, 16),
+        	    Color.WHITE
+        	));
+
         
         gamePanel.add(playerPanel);
         gamePanel.add(computerPanel);
@@ -53,15 +81,34 @@ public class BattleshipGame extends JFrame {
         statusLabel = new JLabel("Place your ships!");
         statusPanel.add(statusLabel);
         
+        JButton rotateButton = new JButton("Rotate (Current: Horizontal)");
+        rotateButton.addActionListener(e -> {
+            isHorizontal = !isHorizontal;
+            rotateButton.setText("Rotate (Current: " + (isHorizontal ? "Horizontal" : "Vertical") + ")");
+        });
+        statusPanel.add(rotateButton);
+
+        
         // Add the panels to the frame
         add(gamePanel, BorderLayout.CENTER);
         add(statusPanel, BorderLayout.SOUTH);
         
-        // Place computer ships
-        placeComputerShips();
+        statusLabel.setText("Place your " + SHIP_NAMES[currentShipIndex]);
+        Color bgColor = new Color(30, 30, 60);
+
+        gamePanel.setBackground(bgColor);
+        playerPanel.setBackground(bgColor);
+        computerPanel.setBackground(bgColor);
+        statusPanel.setBackground(bgColor);
         
-        // Place player ships (after initialization for visualization)
-        SwingUtilities.invokeLater(this::placePlayerShips);
+        statusLabel.setFont(new Font("Verdana", Font.BOLD, 14));
+        statusLabel.setForeground(Color.YELLOW);
+
+
+        ImageIcon missIcon = resizeIcon(new ImageIcon("C:/Users/madhuritha2/csci5020/Battleship/battleship-new/src/miss.jpeg"),40,40);
+        ImageIcon sinkingShipIcon = resizeIcon(new ImageIcon("C:/Users/madhuritha2/csci5020/Battleship/battleship-new/src/shipsunk.jpeg"),40,40);
+
+
         
         pack();
         setLocationRelativeTo(null);
@@ -69,6 +116,8 @@ public class BattleshipGame extends JFrame {
     }
     
     private void initializeGrid(JPanel panel, Cell[][] grid, boolean isComputer) {
+    	ImageIcon shipIcon = resizeIcon(new ImageIcon("C:/Users/madhuritha2/csci5020/Battleship/battleship-new/src/battleship.png"),40,40);  // 40x40 preferred
+
         for (int i = 0; i < GRID_SIZE; i++) {
             for (int j = 0; j < GRID_SIZE; j++) {
                 final int row = i;
@@ -83,6 +132,7 @@ public class BattleshipGame extends JFrame {
                 
                 if (isComputer) {
                     button.addActionListener(e -> {
+                    	if (placingShips) return;
                         if (playerTurn && !gameOver && !grid[row][col].isShot()) {
                             fireShot(row, col, grid, button);
                             playerTurn = false;
@@ -106,20 +156,44 @@ public class BattleshipGame extends JFrame {
                         }
                     });
                 }
+                else {
+                    button.addActionListener(e -> {
+                        if (placingShips && !playerGrid[row][col].hasShip()) {
+                            int shipSize = SHIP_SIZES[currentShipIndex];
+                            if (isValidPlacement(playerGrid, row, col, shipSize, isHorizontal)) {
+                                for (int k = 0; k < shipSize; k++) {
+                                    int r = isHorizontal ? row : row + k;
+                                    int c = isHorizontal ? col + k : col;
+                                    playerGrid[r][c].setShip(true);
+                                    playerGrid[r][c].getButton().setIcon(shipIcon);
+                                }
+                                currentShipIndex++;
+                                if (currentShipIndex < SHIP_SIZES.length) {
+                                    statusLabel.setText("Place your " + SHIP_NAMES[currentShipIndex]);
+                                } else {
+                                    placingShips = false;
+                                    statusLabel.setText("Your turn! Select a target.");
+                                    placeComputerShips();
+                                }
+                            } else {
+                                statusLabel.setText("Invalid placement. Try again.");
+                            }
+                        }
+                    });
+                }
+
                 
                 grid[i][j].setButton(button);
                 panel.add(button);
             }
         }
     }
-    
-    private void placePlayerShips() {
-        for (int i = 0; i < SHIP_SIZES.length; i++) {
-            placeShipRandomly(playerGrid, SHIP_SIZES[i], true);
-        }
-        updateGridDisplay();
-        statusLabel.setText("Your turn! Select a target.");
+    private ImageIcon resizeIcon(ImageIcon icon, int width, int height) {
+        Image image = icon.getImage();
+        Image resized = image.getScaledInstance(width, height, Image.SCALE_SMOOTH);
+        return new ImageIcon(resized);
     }
+
     
     private void placeComputerShips() {
         for (int i = 0; i < SHIP_SIZES.length; i++) {
@@ -183,17 +257,21 @@ public class BattleshipGame extends JFrame {
     }
     
     private void updateGridDisplay() {
+    	ImageIcon shipIcon = resizeIcon(new ImageIcon("C:/Users/madhuritha2/csci5020/Battleship/battleship-new/src/battleship.png"),40,40);  // 40x40 preferred
+        ImageIcon missIcon = resizeIcon(new ImageIcon("C:/Users/madhuritha2/csci5020/Battleship/battleship-new/src/miss.jpeg"),40,40);
+        ImageIcon sinkingShipIcon = resizeIcon(new ImageIcon("C:/Users/madhuritha2/csci5020/Battleship/battleship-new/src/shipsunk.jpeg"),40,40);
+
         for (int i = 0; i < GRID_SIZE; i++) {
             for (int j = 0; j < GRID_SIZE; j++) {
                 // Update player grid
                 if (playerGrid[i][j].isShot()) {
                     if (playerGrid[i][j].hasShip()) {
-                        playerGrid[i][j].getButton().setBackground(HIT_COLOR);
+                        playerGrid[i][j].getButton().setIcon(sinkingShipIcon);
                     } else {
-                        playerGrid[i][j].getButton().setBackground(MISS_COLOR);
+                        playerGrid[i][j].getButton().setIcon(missIcon);
                     }
                 } else if (playerGrid[i][j].hasShip()) {
-                    playerGrid[i][j].getButton().setBackground(SHIP_COLOR);
+                    playerGrid[i][j].getButton().setIcon(shipIcon);
                 } else {
                     playerGrid[i][j].getButton().setBackground(WATER_COLOR);
                 }
@@ -201,9 +279,9 @@ public class BattleshipGame extends JFrame {
                 // Update computer grid - only show hits and misses
                 if (computerGrid[i][j].isShot()) {
                     if (computerGrid[i][j].hasShip()) {
-                        computerGrid[i][j].getButton().setBackground(HIT_COLOR);
+                        computerGrid[i][j].getButton().setIcon(sinkingShipIcon);
                     } else {
-                        computerGrid[i][j].getButton().setBackground(MISS_COLOR);
+                        computerGrid[i][j].getButton().setIcon(missIcon);
                     }
                 } else {
                     computerGrid[i][j].getButton().setBackground(WATER_COLOR);
@@ -303,6 +381,21 @@ public class BattleshipGame extends JFrame {
             gameOver = true;
             statusLabel.setText("Game Over! You won!");
             revealComputerShips();
+        }
+        if(playerLost||computerLost) {
+        	int response = JOptionPane.showConfirmDialog(
+        		    this,
+        		    "Game over! " + (playerLost ? "Computer won!" : "You won!") + "\nDo you want to play again?",
+        		    "Play Again?",
+        		    JOptionPane.YES_NO_OPTION
+        		);
+
+        		if (response == JOptionPane.YES_OPTION) {
+        		    dispose(); // close current window
+        		    SwingUtilities.invokeLater(() -> new BattleshipLauncher()); // restart from launcher
+        		} else {
+        		    System.exit(0);
+        		}
         }
     }
     
